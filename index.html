@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KRAKEN EXPLORER — PYRAMID MISSION CONTROL</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet"/>
+<style>
+/* ── RESET & ROOT ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+:root {
+  --bg:          #0a0a08;
+  --panel:       #111109;
+  --panel-alt:   #161610;
+  --border:      #2a2a1a;
+  --border-glow: #4a4a20;
+  --gold:        #c8a84b;
+  --gold-dim:    #7a6428;
+  --gold-bright: #ffd166;
+  --red:         #cc2222;
+  --red-bright:  #ff3333;
+  --green:       #22aa44;
+  --green-dim:   #0d4420;
+  --amber:       #d4820a;
+  --text:        #c8b888;
+  --text-dim:    #5a5030;
+  --text-bright: #e8d8a0;
+  --scan-speed:  4s;
+}
+ 
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  overflow: hidden;
+  cursor: crosshair;
+}
+ 
+/* ── SCANLINE & NOISE OVERLAY ─────────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none;
+}
+ 
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 9998;
+  background: radial-gradient(ellipse at center,
+    transparent 40%, rgba(0,0,0,0.6) 100%);
+  pointer-events: none;
+}
+ 
+/* ── LAYOUT ───────────────────────────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-rows: 56px 1fr 42px;
+  grid-template-columns: 1fr;
+  height: 100vh;
+  gap: 0;
+}
+ 
+.main-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr 320px;
+  gap: 1px;
+  background: var(--border);
+  overflow: hidden;
+}
+ 
+.column {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+ 
+/* ── HEADER ───────────────────────────────────────────────────────────────── */
+header {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  position: relative;
+}
+ 
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+ 
+.logo-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 6px var(--gold));
+}
+ 
+.logo-text {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--gold-bright);
+  letter-spacing: 3px;
+  text-shadow: 0 0 12px var(--gold);
+}
+ 
+.logo-sub {
+  font-size: 9px;
+  color: var(--gold-dim);
+  letter-spacing: 5px;
+  display: block;
+  margin-top: -2px;
+}
+ 
+.header-center {
+  position: absolute;
+  left: 50%; transform: translateX(-50%);
+  text-align: center;
+}
+ 
+.mission-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  letter-spacing: 6px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+ 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+ 
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red);
+  animation: pulse-red 1.5s infinite;
+}
+ 
+.status-dot.connected {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse-green 2s infinite;
+}
+ 
+@keyframes pulse-red   { 0%,100%{opacity:1} 50%{opacity:.3} }
+@keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:.6} }
+ 
+.status-text {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+}
+ 
+.header-time {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  color: var(--gold);
+  letter-spacing: 2px;
+}
+ 
+/* ── PANEL BASE ───────────────────────────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+ 
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px 6px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, var(--panel-alt), var(--panel));
+}
+ 
+.panel-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+ 
+.panel-badge {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+}
+ 
+.panel-badge.live {
+  color: var(--green);
+  border-color: var(--green-dim);
+  animation: pulse-green 2s infinite;
+}
+ 
+.panel-body {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+ 
+/* ── MOVEMENT CONTROLS ────────────────────────────────────────────────────── */
+.dpad-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0;
+}
+ 
+.dpad {
+  display: grid;
+  grid-template-areas:
+    ". up ."
+    "left center right"
+    ". down .";
+  gap: 4px;
+  width: 140px;
+}
+ 
+.btn {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: all 0.1s;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+ 
+.btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(200,168,75,0.05), transparent);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+ 
+.btn:hover, .btn.active {
+  border-color: var(--gold-dim);
+  color: var(--gold-bright);
+  background: #1a1a0f;
+  box-shadow: inset 0 0 12px rgba(200,168,75,0.08),
+              0 0 6px rgba(200,168,75,0.15);
+}
+ 
+.btn:hover::after, .btn.active::after { opacity: 1; }
+ 
+.btn .key {
+  font-size: 8px;
+  color: var(--text-dim);
+  letter-spacing: 0;
+}
+ 
+.dpad-up    { grid-area: up;     height: 44px; }
+.dpad-left  { grid-area: left;   height: 44px; }
+.dpad-ctr   { grid-area: center; height: 44px;
+               font-size: 8px; letter-spacing: 1px; }
+.dpad-right { grid-area: right;  height: 44px; }
+.dpad-down  { grid-area: down;   height: 44px; }
+ 
+.arrow { font-size: 16px; line-height: 1; }
+ 
+/* ── EMERGENCY STOP ───────────────────────────────────────────────────────── */
+.estop-btn {
+  background: transparent;
+  border: 2px solid var(--red);
+  color: var(--red-bright);
+  font-family: 'Orbitron', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  padding: 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s;
+  width: 100%;
+  box-shadow: inset 0 0 20px rgba(204,34,34,0.1),
+              0 0 10px rgba(204,34,34,0.2);
+  animation: estop-pulse 3s infinite;
+}
+ 
+.estop-btn:hover {
+  background: var(--red);
+  color: #fff;
+  box-shadow: inset 0 0 30px rgba(255,0,0,0.3),
+              0 0 20px rgba(255,0,0,0.5);
+  animation: none;
+}
+ 
+@keyframes estop-pulse {
+  0%,100%{ box-shadow: inset 0 0 20px rgba(204,34,34,0.1), 0 0 10px rgba(204,34,34,0.2); }
+  50%    { box-shadow: inset 0 0 20px rgba(204,34,34,0.2), 0 0 16px rgba(204,34,34,0.4); }
+}
+ 
+/* ── SENSORS ──────────────────────────────────────────────────────────────── */
+.sensor-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+ 
+.sensor-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+ 
+.sensor-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--gold);
+}
+ 
+.sensor-bar-wrap {
+  height: 4px;
+  background: #1a1a10;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+ 
+.sensor-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+  transition: width 0.3s;
+}
+ 
+.artifact-alert {
+  display: none;
+  background: rgba(212,130,10,0.15);
+  border: 1px solid var(--amber);
+  color: var(--gold-bright);
+  padding: 8px 12px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-align: center;
+  animation: blink-alert 0.8s infinite;
+}
+ 
+.artifact-alert.visible { display: block; }
+ 
+@keyframes blink-alert {
+  0%,100%{ opacity:1 } 50%{ opacity:.4 }
+}
+ 
+/* ── VISION PANEL ─────────────────────────────────────────────────────────── */
+.vision-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  min-height: 0;
+}
+ 
+.vision-body {
+  flex: 1;
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  min-height: 0;
+}
+ 
+.vision-feed {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  display: none;
+}
+ 
+.vision-feed.active { display: block; }
+ 
+.vision-placeholder {
+  position: absolute; inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-dim);
+}
+ 
+.vision-icon {
+  font-size: 48px;
+  opacity: 0.3;
+}
+ 
+.vision-placeholder p {
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+ 
+.vision-placeholder small {
+  font-size: 9px;
+  color: var(--border-glow);
+  letter-spacing: 1px;
+}
+ 
+/* Scan line on video */
+.scan-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+ 
+.scan-line {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent, rgba(200,168,75,0.3), transparent);
+  animation: scan var(--scan-speed) linear infinite;
+}
+ 
+@keyframes scan {
+  0%  { top: -2px; }
+  100%{ top: 100%;  }
+}
+ 
+/* Corner brackets on vision feed */
+.corner { position: absolute; width: 20px; height: 20px; }
+.corner-tl { top: 8px;  left: 8px;  border-top: 2px solid var(--gold); border-left: 2px solid var(--gold); }
+.corner-tr { top: 8px;  right: 8px; border-top: 2px solid var(--gold); border-right: 2px solid var(--gold); }
+.corner-bl { bottom: 8px; left: 8px;  border-bottom: 2px solid var(--gold); border-left: 2px solid var(--gold); }
+.corner-br { bottom: 8px; right: 8px; border-bottom: 2px solid var(--gold); border-right: 2px solid var(--gold); }
+ 
+.vision-info-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-alt);
+}
+ 
+.stream-url-input {
+  flex: 1;
+  background: #0d0d08;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+ 
+.stream-url-input:focus {
+  border-color: var(--gold-dim);
+}
+ 
+.stream-url-input::placeholder { color: var(--text-dim); }
+ 
+.stream-btn {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  padding: 6px 14px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+ 
+.stream-btn:hover {
+  border-color: var(--gold-dim);
+  color: var(--gold-bright);
+}
+ 
+.stream-btn.active {
+  border-color: var(--green);
+  color: var(--green);
+}
+ 
+/* ── AI STATUS ────────────────────────────────────────────────────────────── */
+.ai-panel {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+ 
+.ai-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+ 
+.ai-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--amber);
+}
+ 
+.ai-status {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+ 
+.ai-output {
+  font-size: 10px;
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 32px;
+  letter-spacing: 0.5px;
+}
+ 
+.ai-output .highlight { color: var(--gold-bright); }
+ 
+/* ── GRABBER ARM ──────────────────────────────────────────────────────────── */
+.arm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+ 
+.arm-section-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+}
+ 
+.arm-btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+ 
+.arm-btn {
+  height: 52px;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+ 
+.arm-btn .arm-icon { font-size: 16px; }
+.arm-btn .key { font-size: 8px; color: var(--text-dim); }
+ 
+/* ── EVENT LOG ────────────────────────────────────────────────────────────── */
+.log-panel {
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow: hidden;
+}
+ 
+.log-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--gold-dim);
+  padding: 0 14px;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  height: 100%;
+  display: flex; align-items: center;
+}
+ 
+.log-scroll {
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+  display: flex; align-items: center;
+}
+ 
+.log-inner {
+  display: flex;
+  gap: 0;
+  animation: scroll-log 30s linear infinite;
+  white-space: nowrap;
+}
+ 
+.log-entry {
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 0 20px;
+  border-right: 1px solid var(--border);
+  height: 42px;
+  display: flex; align-items: center;
+  gap: 8px;
+}
+ 
+.log-entry .log-key { color: var(--gold-dim); }
+.log-entry .log-action { color: var(--text); }
+ 
+@keyframes scroll-log {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+ 
+.log-clear-btn {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  padding: 0 14px;
+  cursor: pointer;
+  height: 100%;
+  transition: color 0.2s;
+}
+ 
+.log-clear-btn:hover { color: var(--gold); }
+ 
+/* ── WS STATUS BANNER ─────────────────────────────────────────────────────── */
+.ws-banner {
+  position: fixed;
+  top: 56px; left: 0; right: 0;
+  background: rgba(204,34,34,0.85);
+  color: #fff;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 3px;
+  padding: 4px;
+  z-index: 1000;
+  display: none;
+  font-family: 'Orbitron', monospace;
+  backdrop-filter: blur(4px);
+}
+ 
+.ws-banner.visible { display: block; }
+ 
+/* ── GRID / SEPARATOR ─────────────────────────────────────────────────────── */
+.sep { height: 1px; background: var(--border); margin: 4px 0; }
+ 
+/* Flex grow for vision */
+.col-mid { flex: 1; min-height: 0; }
+ 
+/* Scrollable middle column */
+.col-left, .col-right { overflow-y: auto; }
+.col-left::-webkit-scrollbar,
+.col-right::-webkit-scrollbar { width: 4px; }
+.col-left::-webkit-scrollbar-thumb,
+.col-right::-webkit-scrollbar-thumb { background: var(--border); }
+</style>
+</head>
+<body>
+ 
+<div class="app">
+ 
+  <!-- ══ HEADER ══ -->
+  <header>
+    <div class="header-logo">
+      <!-- KRAKEN LOGO: inline SVG recreation matching the uploaded octopus compass logo -->
+      <svg class="logo-img" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <!-- Compass ring -->
+        <circle cx="50" cy="50" r="46" fill="none" stroke="#c8a84b" stroke-width="2.5"/>
+        <!-- Compass spikes N/S/E/W -->
+        <polygon points="50,4 54,24 50,20 46,24" fill="#c8a84b"/>
+        <polygon points="50,96 54,76 50,80 46,76" fill="#c8a84b"/>
+        <polygon points="4,50 24,46 20,50 24,54" fill="#1a3a8a"/>
+        <polygon points="96,50 76,46 80,50 76,54" fill="#1a3a8a"/>
+        <!-- Diagonal spikes -->
+        <polygon points="18,18 28,30 26,26 30,28" fill="#1a3a8a" opacity=".7"/>
+        <polygon points="82,18 72,30 74,26 70,28" fill="#1a3a8a" opacity=".7"/>
+        <polygon points="18,82 28,70 26,74 30,72" fill="#1a3a8a" opacity=".7"/>
+        <polygon points="82,82 72,70 74,74 70,72" fill="#1a3a8a" opacity=".7"/>
+        <!-- N/S/E/W labels -->
+        <text x="50" y="15" text-anchor="middle" font-size="7" fill="#c8a84b" font-family="Arial" font-weight="bold">N</text>
+        <text x="50" y="92" text-anchor="middle" font-size="7" fill="#c8a84b" font-family="Arial" font-weight="bold">S</text>
+        <text x="88" y="53" text-anchor="middle" font-size="7" fill="#c8a84b" font-family="Arial" font-weight="bold">E</text>
+        <text x="12" y="53" text-anchor="middle" font-size="7" fill="#c8a84b" font-family="Arial" font-weight="bold">W</text>
+        <!-- Octopus body -->
+        <ellipse cx="50" cy="42" rx="16" ry="18" fill="#e8e8e8"/>
+        <!-- Eyes -->
+        <circle cx="44" cy="38" r="4" fill="#fff"/>
+        <circle cx="56" cy="38" r="4" fill="#fff"/>
+        <circle cx="45" cy="38" r="2.5" fill="#e8a800"/>
+        <circle cx="57" cy="38" r="2.5" fill="#e8a800"/>
+        <circle cx="46" cy="38" r="1.2" fill="#111"/>
+        <circle cx="58" cy="38" r="1.2" fill="#111"/>
+        <!-- Mantle top -->
+        <ellipse cx="50" cy="30" rx="10" ry="8" fill="#d8d8d8"/>
+        <!-- Tentacles -->
+        <path d="M38,55 Q32,65 28,72 Q26,78 30,80" stroke="#d0d0d0" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M42,58 Q36,68 34,76 Q33,82 37,83" stroke="#c8c8c8" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M50,60 Q50,70 50,78 Q50,84 50,85" stroke="#d0d0d0" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M58,58 Q64,68 66,76 Q67,82 63,83" stroke="#c8c8c8" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M62,55 Q68,65 72,72 Q74,78 70,80" stroke="#d0d0d0" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <!-- Suction tips -->
+        <circle cx="30" cy="80" r="2" fill="#bbb"/>
+        <circle cx="37" cy="83" r="1.8" fill="#bbb"/>
+        <circle cx="50" cy="85" r="2" fill="#bbb"/>
+        <circle cx="63" cy="83" r="1.8" fill="#bbb"/>
+        <circle cx="70" cy="80" r="2" fill="#bbb"/>
+      </svg>
+      <div>
+        <div class="logo-text">KRAKEN</div>
+        <span class="logo-sub">PYRAMID EXPLORER</span>
+      </div>
+    </div>
+ 
+    <div class="header-center">
+      <div class="mission-title">MISSION CONTROL — PYRAMID SERIES I</div>
+    </div>
+ 
+    <div class="header-right">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="status-dot" id="connDot"></div>
+        <div class="status-text" id="connText">DISCONNECTED</div>
+      </div>
+      <div class="header-time" id="clockDisplay">00:00:00</div>
+    </div>
+  </header>
+ 
+  <!-- ══ WS BANNER ══ -->
+  <div class="ws-banner" id="wsBanner">⚠ CONNECTION LOST — ATTEMPTING RECONNECT</div>
+ 
+  <!-- ══ MAIN GRID ══ -->
+  <div class="main-grid">
+ 
+    <!-- ── LEFT: MOVEMENT + SENSORS ── -->
+    <div class="column col-left">
+ 
+      <!-- MOVEMENT -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">MOVEMENT</span>
+          <span class="panel-badge">WASD</span>
+        </div>
+        <div class="panel-body">
+          <div class="dpad-wrap">
+            <div class="dpad">
+              <button class="btn dpad-up" id="btnForward"
+                onmousedown="hold('MOVE_FORWARD','btnForward')"
+                onmouseup="release('MOVE_STOP','btnForward')"
+                onmouseleave="release('MOVE_STOP','btnForward')"
+                ontouchstart="hold('MOVE_FORWARD','btnForward')"
+                ontouchend="release('MOVE_STOP','btnForward')">
+                <span class="arrow">▲</span>
+                <span class="key">W</span>
+              </button>
+              <button class="btn dpad-left" id="btnLeft"
+                onmousedown="hold('TURN_LEFT','btnLeft')"
+                onmouseup="release('MOVE_STOP','btnLeft')"
+                onmouseleave="release('MOVE_STOP','btnLeft')"
+                ontouchstart="hold('TURN_LEFT','btnLeft')"
+                ontouchend="release('MOVE_STOP','btnLeft')">
+                <span class="arrow">◀</span>
+                <span class="key">A</span>
+              </button>
+              <button class="btn dpad-ctr" id="btnStop"
+                onclick="sendCmd('MOVE_STOP')">
+                STOP<br/><span class="key">SPC</span>
+              </button>
+              <button class="btn dpad-right" id="btnRight"
+                onmousedown="hold('TURN_RIGHT','btnRight')"
+                onmouseup="release('MOVE_STOP','btnRight')"
+                onmouseleave="release('MOVE_STOP','btnRight')"
+                ontouchstart="hold('TURN_RIGHT','btnRight')"
+                ontouchend="release('MOVE_STOP','btnRight')">
+                <span class="arrow">▶</span>
+                <span class="key">D</span>
+              </button>
+              <button class="btn dpad-down" id="btnBack"
+                onmousedown="hold('MOVE_BACKWARD','btnBack')"
+                onmouseup="release('MOVE_STOP','btnBack')"
+                onmouseleave="release('MOVE_STOP','btnBack')"
+                ontouchstart="hold('MOVE_BACKWARD','btnBack')"
+                ontouchend="release('MOVE_STOP','btnBack')">
+                <span class="arrow">▼</span>
+                <span class="key">S</span>
+              </button>
+            </div>
+          </div>
+ 
+          <button class="estop-btn" id="estopBtn" onclick="emergencyStop()">
+            ⚠ EMERGENCY STOP
+          </button>
+        </div>
+      </div>
+ 
+      <!-- SENSORS -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">SENSORS</span>
+          <span class="panel-badge live">LIVE</span>
+        </div>
+        <div class="panel-body">
+ 
+          <div class="sensor-row">
+            <div class="sensor-label">ULTRASONIC</div>
+            <div class="sensor-value">
+              <span id="usVal">-- cm</span>
+            </div>
+            <div class="sensor-bar-wrap">
+              <div class="sensor-bar" id="usBar" style="width:0%"></div>
+            </div>
+          </div>
+ 
+          <div class="sensor-row">
+            <div class="sensor-label">COLOR SENSOR</div>
+            <div class="sensor-value">
+              <span id="colorVal">--</span>
+              <span id="colorSwatch" style="width:14px;height:14px;border:1px solid var(--border);display:inline-block;"></span>
+            </div>
+          </div>
+ 
+          <div class="sensor-row">
+            <div class="sensor-label">ROBOT STATE</div>
+            <div class="sensor-value">
+              <span id="robotState" style="color:var(--green)">READY</span>
+            </div>
+          </div>
+ 
+          <div class="artifact-alert" id="artifactAlert">
+            ◈ ARTIFACT DETECTED — DEPLOY GRABBER
+          </div>
+ 
+        </div>
+      </div>
+ 
+      <!-- AI ANALYSIS -->
+      <div class="panel" style="flex:1">
+        <div class="panel-header">
+          <span class="panel-title">AI ANALYSIS</span>
+          <span class="panel-badge" id="aiStatus">SCANNING</span>
+        </div>
+        <div class="panel-body">
+          <div class="ai-output" id="aiOutput">
+            <span class="highlight">[ KRAKEN AI ]</span> System initialising...<br/>
+            Artifact recognition: <span class="highlight">ONLINE</span><br/>
+            Hazard detection: <span class="highlight">ONLINE</span>
+          </div>
+          <div class="sep"></div>
+          <div style="font-size:9px;color:var(--text-dim);letter-spacing:1px;">
+            AI detects artifacts via proximity + color.<br/>
+            Triggers grabber suggestion when &lt;20 cm.
+          </div>
+        </div>
+      </div>
+ 
+    </div>
+ 
+    <!-- ── MIDDLE: VISION ── -->
+    <div class="column col-mid" style="background:var(--bg);">
+      <div class="vision-panel">
+        <div class="panel-header">
+          <span class="panel-title">VISION — PHONE CAMERA</span>
+          <span class="panel-badge" id="streamBadge">NO SIGNAL</span>
+        </div>
+ 
+        <div class="vision-body" id="visionBody">
+          <img class="vision-feed" id="streamImg" alt="Live Feed"/>
+          <div class="vision-placeholder" id="visionPlaceholder">
+            <div class="vision-icon">📷</div>
+            <p>Camera feed not active</p>
+            <small>Enter stream URL below and press Start</small>
+          </div>
+          <div class="scan-overlay">
+            <div class="scan-line"></div>
+          </div>
+          <div class="corner corner-tl"></div>
+          <div class="corner corner-tr"></div>
+          <div class="corner corner-bl"></div>
+          <div class="corner corner-br"></div>
+        </div>
+ 
+        <div class="vision-info-bar">
+          <span style="font-size:10px;color:var(--text-dim);letter-spacing:1px;white-space:nowrap;">Stream URL:</span>
+          <input class="stream-url-input" id="streamUrl"
+            type="text"
+            value="http://192.168.0.100:8080/?action=stream"
+            placeholder="http://phone-ip:port/?action=stream"/>
+          <button class="stream-btn" id="streamStartBtn" onclick="startStream()">Start</button>
+          <button class="stream-btn" onclick="stopStream()">Stop</button>
+        </div>
+      </div>
+    </div>
+ 
+    <!-- ── RIGHT: GRABBER ARM ── -->
+    <div class="column col-right">
+ 
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">GRABBER ARM</span>
+          <span class="panel-badge">6 MOTORS</span>
+        </div>
+ 
+        <!-- ARM DIRECTION -->
+        <div class="arm-section">
+          <div class="arm-section-label">ARM DIRECTION (ROTATE)</div>
+          <div class="arm-btn-row">
+            <button class="btn arm-btn" id="btnArmL"
+              onmousedown="hold('ARM_ROT_L','btnArmL')"
+              onmouseup="release('ARM_ROT_STOP','btnArmL')"
+              onmouseleave="release('ARM_ROT_STOP','btnArmL')"
+              ontouchstart="hold('ARM_ROT_L','btnArmL')"
+              ontouchend="release('ARM_ROT_STOP','btnArmL')">
+              <span class="arm-icon">↺</span>
+              Rotate L
+              <span class="key">Q</span>
+            </button>
+            <button class="btn arm-btn" id="btnArmR"
+              onmousedown="hold('ARM_ROT_R','btnArmR')"
+              onmouseup="release('ARM_ROT_STOP','btnArmR')"
+              onmouseleave="release('ARM_ROT_STOP','btnArmR')"
+              ontouchstart="hold('ARM_ROT_R','btnArmR')"
+              ontouchend="release('ARM_ROT_STOP','btnArmR')">
+              <span class="arm-icon">↻</span>
+              Rotate R
+              <span class="key">E</span>
+            </button>
+          </div>
+        </div>
+ 
+        <!-- LOWER BOOM -->
+        <div class="arm-section">
+          <div class="arm-section-label">LOWER BOOM</div>
+          <div class="arm-btn-row">
+            <button class="btn arm-btn" id="btnBoomLLift"
+              onmousedown="hold('BOOM_L_LIFT','btnBoomLLift')"
+              onmouseup="release('BOOM_L_STOP','btnBoomLLift')"
+              onmouseleave="release('BOOM_L_STOP','btnBoomLLift')"
+              ontouchstart="hold('BOOM_L_LIFT','btnBoomLLift')"
+              ontouchend="release('BOOM_L_STOP','btnBoomLLift')">
+              <span class="arm-icon">↑</span>
+              Lift
+              <span class="key">R</span>
+            </button>
+            <button class="btn arm-btn" id="btnBoomLLower"
+              onmousedown="hold('BOOM_L_LOWER','btnBoomLLower')"
+              onmouseup="release('BOOM_L_STOP','btnBoomLLower')"
+              onmouseleave="release('BOOM_L_STOP','btnBoomLLower')"
+              ontouchstart="hold('BOOM_L_LOWER','btnBoomLLower')"
+              ontouchend="release('BOOM_L_STOP','btnBoomLLower')">
+              <span class="arm-icon">↓</span>
+              Lower
+              <span class="key">F</span>
+            </button>
+          </div>
+        </div>
+ 
+        <!-- UPPER BOOM -->
+        <div class="arm-section">
+          <div class="arm-section-label">UPPER BOOM</div>
+          <div class="arm-btn-row">
+            <button class="btn arm-btn" id="btnBoomUExt"
+              onmousedown="hold('BOOM_U_EXTEND','btnBoomUExt')"
+              onmouseup="release('BOOM_U_STOP','btnBoomUExt')"
+              onmouseleave="release('BOOM_U_STOP','btnBoomUExt')"
+              ontouchstart="hold('BOOM_U_EXTEND','btnBoomUExt')"
+              ontouchend="release('BOOM_U_STOP','btnBoomUExt')">
+              <span class="arm-icon">↗</span>
+              Extend
+              <span class="key">T</span>
+            </button>
+            <button class="btn arm-btn" id="btnBoomURet"
+              onmousedown="hold('BOOM_U_RETRACT','btnBoomURet')"
+              onmouseup="release('BOOM_U_STOP','btnBoomURet')"
+              onmouseleave="release('BOOM_U_STOP','btnBoomURet')"
+              ontouchstart="hold('BOOM_U_RETRACT','btnBoomURet')"
+              ontouchend="release('BOOM_U_STOP','btnBoomURet')">
+              <span class="arm-icon">↙</span>
+              Retract
+              <span class="key">G</span>
+            </button>
+          </div>
+        </div>
+ 
+        <!-- HORIZONTAL CLAW -->
+        <div class="arm-section">
+          <div class="arm-section-label">HORIZONTAL CLAW</div>
+          <div class="arm-btn-row">
+            <button class="btn arm-btn" id="btnClawOpen"
+              onmousedown="hold('CLAW_OPEN','btnClawOpen')"
+              onmouseup="release('CLAW_STOP','btnClawOpen')"
+              onmouseleave="release('CLAW_STOP','btnClawOpen')"
+              ontouchstart="hold('CLAW_OPEN','btnClawOpen')"
+              ontouchend="release('CLAW_STOP','btnClawOpen')">
+              <span class="arm-icon">↔</span>
+              Open
+              <span class="key">Z</span>
+            </button>
+            <button class="btn arm-btn" id="btnClawGrab"
+              onmousedown="hold('CLAW_GRAB','btnClawGrab')"
+              onmouseup="release('CLAW_STOP','btnClawGrab')"
+              onmouseleave="release('CLAW_STOP','btnClawGrab')"
+              ontouchstart="hold('CLAW_GRAB','btnClawGrab')"
+              ontouchend="release('CLAW_STOP','btnClawGrab')">
+              <span class="arm-icon">⇔</span>
+              Close/Grab
+              <span class="key">X</span>
+            </button>
+          </div>
+        </div>
+ 
+      </div>
+ 
+      <!-- MISSION LOG -->
+      <div class="panel" style="flex:1">
+        <div class="panel-header">
+          <span class="panel-title">MISSION LOG</span>
+          <button class="log-clear-btn" style="border:none;padding:0;height:auto;font-size:9px;color:var(--text-dim);background:none;cursor:pointer;letter-spacing:1px;"
+            onclick="clearMissionLog()">CLEAR</button>
+        </div>
+        <div class="panel-body" style="overflow-y:auto;gap:2px;" id="missionLog">
+          <div style="font-size:9px;color:var(--text-dim);letter-spacing:1px;">[ SYSTEM ] Kraken Explorer ready</div>
+        </div>
+      </div>
+ 
+    </div>
+  </div>
+ 
+  <!-- ══ BOTTOM KEYMAP ══ -->
+  <div class="log-panel">
+    <div class="log-label">KEY MAP &amp; EVENT LOG</div>
+    <div class="log-scroll">
+      <div class="log-inner" id="logInner">
+        <div class="log-entry"><span class="log-key">W</span><span class="log-action">Forward</span></div>
+        <div class="log-entry"><span class="log-key">S</span><span class="log-action">Backward</span></div>
+        <div class="log-entry"><span class="log-key">A</span><span class="log-action">Turn L</span></div>
+        <div class="log-entry"><span class="log-key">D</span><span class="log-action">Turn R</span></div>
+        <div class="log-entry"><span class="log-key">SPC</span><span class="log-action">Stop</span></div>
+        <div class="log-entry"><span class="log-key">Q</span><span class="log-action">Arm Rotate L</span></div>
+        <div class="log-entry"><span class="log-key">E</span><span class="log-action">Arm Rotate R</span></div>
+        <div class="log-entry"><span class="log-key">R</span><span class="log-action">Boom Up</span></div>
+        <div class="log-entry"><span class="log-key">F</span><span class="log-action">Boom Down</span></div>
+        <div class="log-entry"><span class="log-key">T</span><span class="log-action">Extend</span></div>
+        <div class="log-entry"><span class="log-key">G</span><span class="log-action">Retract</span></div>
+        <div class="log-entry"><span class="log-key">Z</span><span class="log-action">Claw Open</span></div>
+        <div class="log-entry"><span class="log-key">X</span><span class="log-action">Claw Grab</span></div>
+        <div class="log-entry"><span class="log-key">ESC</span><span class="log-action">E-Stop</span></div>
+        <!-- duplicate for seamless loop -->
+        <div class="log-entry"><span class="log-key">W</span><span class="log-action">Forward</span></div>
+        <div class="log-entry"><span class="log-key">S</span><span class="log-action">Backward</span></div>
+        <div class="log-entry"><span class="log-key">A</span><span class="log-action">Turn L</span></div>
+        <div class="log-entry"><span class="log-key">D</span><span class="log-action">Turn R</span></div>
+        <div class="log-entry"><span class="log-key">SPC</span><span class="log-action">Stop</span></div>
+        <div class="log-entry"><span class="log-key">Q</span><span class="log-action">Arm Rotate L</span></div>
+        <div class="log-entry"><span class="log-key">E</span><span class="log-action">Arm Rotate R</span></div>
+        <div class="log-entry"><span class="log-key">R</span><span class="log-action">Boom Up</span></div>
+        <div class="log-entry"><span class="log-key">F</span><span class="log-action">Boom Down</span></div>
+        <div class="log-entry"><span class="log-key">T</span><span class="log-action">Extend</span></div>
+        <div class="log-entry"><span class="log-key">G</span><span class="log-action">Retract</span></div>
+        <div class="log-entry"><span class="log-key">Z</span><span class="log-action">Claw Open</span></div>
+        <div class="log-entry"><span class="log-key">X</span><span class="log-action">Claw Grab</span></div>
+        <div class="log-entry"><span class="log-key">ESC</span><span class="log-action">E-Stop</span></div>
+      </div>
+    </div>
+    <button class="log-clear-btn" onclick="clearMissionLog()">CLEAR</button>
+  </div>
+ 
+</div>
+ 
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+const ROBOT_IP = "192.168.137.3";
+const ROBOT_PORT = 8080;
+const WS_URL = `ws://${ROBOT_IP}:${ROBOT_PORT}/`;
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════════════════════════════════════
+let ws = null;
+let reconnectTimer = null;
+let connected = false;
+ 
+function connectWS() {
+  if (ws) { try { ws.close(); } catch(e){} }
+  ws = new WebSocket(WS_URL);
+ 
+  ws.onopen = () => {
+    connected = true;
+    document.getElementById("connDot").classList.add("connected");
+    document.getElementById("connText").textContent = "CONNECTED";
+    document.getElementById("wsBanner").classList.remove("visible");
+    logMission("SYSTEM", "WebSocket connected to robot");
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  };
+ 
+  ws.onclose = () => {
+    connected = false;
+    document.getElementById("connDot").classList.remove("connected");
+    document.getElementById("connText").textContent = "DISCONNECTED";
+    document.getElementById("wsBanner").classList.add("visible");
+    logMission("WARN", "Connection lost — reconnecting...");
+    reconnectTimer = setTimeout(connectWS, 3000);
+  };
+ 
+  ws.onerror = () => {
+    ws.close();
+  };
+ 
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === "state") updateState(msg.data);
+    } catch(err) {}
+  };
+}
+ 
+function sendCmd(cmd) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(cmd);
+  } else {
+    logMission("WARN", `Not connected — command '${cmd}' dropped`);
+  }
+}
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// HOLD / RELEASE PATTERN
+// ═══════════════════════════════════════════════════════════════════════════
+const activeHolds = {};
+ 
+function hold(cmd, btnId) {
+  if (activeHolds[btnId]) return;
+  activeHolds[btnId] = cmd;
+  sendCmd(cmd);
+  document.getElementById(btnId)?.classList.add("active");
+}
+ 
+function release(stopCmd, btnId) {
+  if (!activeHolds[btnId]) return;
+  delete activeHolds[btnId];
+  sendCmd(stopCmd);
+  document.getElementById(btnId)?.classList.remove("active");
+}
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// KEYBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+const KEY_DOWN_MAP = {
+  "KeyW":     ["MOVE_FORWARD",   "btnForward"],
+  "KeyS":     ["MOVE_BACKWARD",  "btnBack"],
+  "KeyA":     ["TURN_LEFT",      "btnLeft"],
+  "KeyD":     ["TURN_RIGHT",     "btnRight"],
+  "KeyQ":     ["ARM_ROT_L",      "btnArmL"],
+  "KeyE":     ["ARM_ROT_R",      "btnArmR"],
+  "KeyR":     ["BOOM_L_LIFT",    "btnBoomLLift"],
+  "KeyF":     ["BOOM_L_LOWER",   "btnBoomLLower"],
+  "KeyT":     ["BOOM_U_EXTEND",  "btnBoomUExt"],
+  "KeyG":     ["BOOM_U_RETRACT", "btnBoomURet"],
+  "KeyZ":     ["CLAW_OPEN",      "btnClawOpen"],
+  "KeyX":     ["CLAW_GRAB",      "btnClawGrab"],
+};
+ 
+const KEY_UP_MAP = {
+  "KeyW":     ["MOVE_STOP",     "btnForward"],
+  "KeyS":     ["MOVE_STOP",     "btnBack"],
+  "KeyA":     ["MOVE_STOP",     "btnLeft"],
+  "KeyD":     ["MOVE_STOP",     "btnRight"],
+  "KeyQ":     ["ARM_ROT_STOP",  "btnArmL"],
+  "KeyE":     ["ARM_ROT_STOP",  "btnArmR"],
+  "KeyR":     ["BOOM_L_STOP",   "btnBoomLLift"],
+  "KeyF":     ["BOOM_L_STOP",   "btnBoomLLower"],
+  "KeyT":     ["BOOM_U_STOP",   "btnBoomUExt"],
+  "KeyG":     ["BOOM_U_STOP",   "btnBoomURet"],
+  "KeyZ":     ["CLAW_STOP",     "btnClawOpen"],
+  "KeyX":     ["CLAW_STOP",     "btnClawGrab"],
+};
+ 
+const heldKeys = new Set();
+ 
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  if (heldKeys.has(e.code)) return;
+  heldKeys.add(e.code);
+ 
+  if (e.code === "Space") { e.preventDefault(); sendCmd("MOVE_STOP"); return; }
+  if (e.code === "Escape") { emergencyStop(); return; }
+ 
+  const pair = KEY_DOWN_MAP[e.code];
+  if (pair) { e.preventDefault(); hold(pair[0], pair[1]); }
+});
+ 
+document.addEventListener("keyup", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  heldKeys.delete(e.code);
+  const pair = KEY_UP_MAP[e.code];
+  if (pair) release(pair[0], pair[1]);
+});
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// EMERGENCY STOP
+// ═══════════════════════════════════════════════════════════════════════════
+function emergencyStop() {
+  sendCmd("ESTOP");
+  logMission("ESTOP", "Emergency stop activated!");
+  document.getElementById("estopBtn").style.background = "var(--red)";
+  document.getElementById("estopBtn").style.color = "#fff";
+  setTimeout(() => {
+    document.getElementById("estopBtn").style.background = "";
+    document.getElementById("estopBtn").style.color = "";
+    sendCmd("ESTOP_RESET");
+  }, 3000);
+}
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE UPDATE (sensor data from robot)
+// ═══════════════════════════════════════════════════════════════════════════
+const COLOR_MAP = {
+  NONE:"#333", BLACK:"#111", BLUE:"#2255cc", GREEN:"#22aa44",
+  YELLOW:"#eecc22", RED:"#cc2222", WHITE:"#eeeedd", BROWN:"#884422"
+};
+ 
+function updateState(data) {
+  // Ultrasonic
+  const u = data.ultrasonic;
+  document.getElementById("usVal").textContent =
+    (u && u > 0) ? `${u} cm` : "-- cm";
+  const pct = u ? Math.min(100, Math.max(0, (300 - u) / 3)) : 0;
+  document.getElementById("usBar").style.width = pct + "%";
+ 
+  // Color
+  const c = data.color || "--";
+  document.getElementById("colorVal").textContent = c;
+  document.getElementById("colorSwatch").style.background = COLOR_MAP[c] || "#333";
+ 
+  // Robot state
+  const rs = data.robot_state || "READY";
+  const rsEl = document.getElementById("robotState");
+  rsEl.textContent = rs;
+  rsEl.style.color = rs === "E-STOP" ? "var(--red-bright)" : "var(--green)";
+ 
+  // Artifact detection
+  const det = data.artifact_detected;
+  document.getElementById("artifactAlert").classList.toggle("visible", !!det);
+  if (det) {
+    aiAnalysis(`ARTIFACT DETECTED at ${u} cm — color: ${c}. Recommend deploy grabber.`);
+  }
+}
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// AI ANALYSIS LAYER
+// ═══════════════════════════════════════════════════════════════════════════
+const aiPhrases = [
+  "Scanning for archaeological markers...",
+  "Analysing surface reflectance...",
+  "No threat signatures detected.",
+  "Terrain mapping in progress...",
+  "Calibrating depth perception...",
+  "Pattern match: <span class='highlight'>NONE</span>",
+];
+let aiIdx = 0;
+ 
+function aiAnalysis(override) {
+  const el = document.getElementById("aiOutput");
+  if (override) {
+    el.innerHTML = `<span class="highlight">[ KRAKEN AI ]</span> ${override}`;
+    document.getElementById("aiStatus").textContent = "ALERT";
+    document.getElementById("aiStatus").style.color = "var(--amber)";
+    logMission("AI", override);
+    setTimeout(() => {
+      document.getElementById("aiStatus").textContent = "SCANNING";
+      document.getElementById("aiStatus").style.color = "";
+    }, 5000);
+  } else {
+    el.innerHTML = `<span class="highlight">[ KRAKEN AI ]</span> ${aiPhrases[aiIdx % aiPhrases.length]}`;
+    aiIdx++;
+  }
+}
+ 
+setInterval(() => { if (!document.getElementById("artifactAlert").classList.contains("visible")) aiAnalysis(); }, 4000);
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// VISION / CAMERA STREAM
+// ═══════════════════════════════════════════════════════════════════════════
+let streamActive = false;
+ 
+function startStream() {
+  const url = document.getElementById("streamUrl").value.trim();
+  if (!url) return;
+  const img = document.getElementById("streamImg");
+  const placeholder = document.getElementById("visionPlaceholder");
+  img.src = url + "&ts=" + Date.now();
+  img.style.display = "block";
+  img.classList.add("active");
+  placeholder.style.display = "none";
+  document.getElementById("streamBadge").textContent = "LIVE";
+  document.getElementById("streamBadge").classList.add("live");
+  document.getElementById("streamStartBtn").classList.add("active");
+  streamActive = true;
+  logMission("VISION", "Camera stream started");
+}
+ 
+function stopStream() {
+  const img = document.getElementById("streamImg");
+  img.src = "";
+  img.style.display = "none";
+  img.classList.remove("active");
+  document.getElementById("visionPlaceholder").style.display = "flex";
+  document.getElementById("streamBadge").textContent = "NO SIGNAL";
+  document.getElementById("streamBadge").classList.remove("live");
+  document.getElementById("streamStartBtn").classList.remove("active");
+  streamActive = false;
+  logMission("VISION", "Camera stream stopped");
+}
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// MISSION LOG
+// ═══════════════════════════════════════════════════════════════════════════
+function logMission(type, msg) {
+  const log = document.getElementById("missionLog");
+  const t = new Date().toTimeString().slice(0,8);
+  const colors = {SYSTEM:"var(--text-dim)", WARN:"var(--amber)", ESTOP:"var(--red-bright)",
+                  AI:"var(--gold)", VISION:"var(--green)", CMD:"var(--text)"};
+  const el = document.createElement("div");
+  el.style.cssText = `font-size:9px;letter-spacing:1px;color:${colors[type]||"var(--text-dim)"}`;
+  el.textContent = `[${t}] [${type}] ${msg}`;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  // Keep max 80 entries
+  while (log.children.length > 80) log.removeChild(log.firstChild);
+}
+ 
+function clearMissionLog() {
+  document.getElementById("missionLog").innerHTML =
+    `<div style="font-size:9px;color:var(--text-dim);letter-spacing:1px;">[ LOG CLEARED ]</div>`;
+}
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// CLOCK
+// ═══════════════════════════════════════════════════════════════════════════
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,"0");
+  const m = String(now.getMinutes()).padStart(2,"0");
+  const s = String(now.getSeconds()).padStart(2,"0");
+  document.getElementById("clockDisplay").textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+ 
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+connectWS();
+logMission("SYSTEM", `Connecting to ${ROBOT_IP}:${ROBOT_PORT}...`);
+</script>
+</body>
+</html>
